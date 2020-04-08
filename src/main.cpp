@@ -29,6 +29,7 @@ SOFTWARE.
 #include <SPI.h>
 #include <ESP8266mDNS.h>
 #include <ArduinoJson.h>
+#include <Timezone.h>
 #include <FS.h>
 #include <ESPAsyncTCP.h>
 #include <ESPAsyncWebServer.h>
@@ -39,6 +40,11 @@ SOFTWARE.
 #include <Bounce2.h>
 #include "magicnumbers.h"
 
+
+// US Eastern Time Zone (New York, Detroit)
+TimeChangeRule myDST = {"EDT", Second, Sun, Mar, 2, -240};    // Daylight time = UTC - 4 hours
+TimeChangeRule mySTD = {"EST", First, Sun, Nov, 2, -300};     // Standard time = UTC - 5 hours
+Timezone myTZ(myDST, mySTD);
 
 
  // #define DEBUG
@@ -279,7 +285,8 @@ void ICACHE_RAM_ATTR loop()
 	}
 
 	// "Open access" timer.
-	int hr = hour();
+	time_t localAdjustedTime = myTZ.toLocal(now());
+	int hr = hour(localAdjustedTime);
 	if (NTP.hasBeenUpdated && (hr >= 5) && (hr <= 21)) { // Only use the time when it has been updated successfully via NTP at least once.
 		if (!openAccessActive) { // Only activate once.
 			// Inside open access hours, enable open access mode.
