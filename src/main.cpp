@@ -39,6 +39,8 @@ SOFTWARE.
 #include <Bounce2.h>
 #include "magicnumbers.h"
 
+
+
  // #define DEBUG
 
 int numRelays=1;
@@ -50,7 +52,7 @@ int numRelays=1;
 WIEGAND wg;
 int relayPin[MAX_NUM_RELAYS] = {13};
 bool activateRelay [MAX_NUM_RELAYS]= {false};
-bool deactivateRelay [MAX_NUM_RELAYS]= {false};
+unsigned long deactivateRelay [MAX_NUM_RELAYS]= {0};
 
 #endif
 
@@ -73,7 +75,7 @@ int readertype;
 
 int relayPin[MAX_NUM_RELAYS];
 bool activateRelay [MAX_NUM_RELAYS]= {false,false,false,false};
-bool deactivateRelay [MAX_NUM_RELAYS]= {false,false,false,false};
+unsigned long deactivateRelay [MAX_NUM_RELAYS]= {0,0,0,0}; // Array of millis counts after which to deactivate relay.
 
 #endif
 
@@ -123,7 +125,6 @@ uint8_t openlockpin = 255;
 // Variables for whole scope
 const char *http_username = "admin";
 char *http_pass = NULL;
-unsigned long previousMillis = 0;
 unsigned long previousLoopMillis = 0;
 unsigned long currentMillis = 0;
 unsigned long cooldown = 0;
@@ -135,6 +136,7 @@ bool shouldReboot = false;
 bool inAPMode = false;
 bool isWifiConnected = false;
 unsigned long autoRestartIntervalSeconds = 0;
+bool openAccessActive = false;
 
 bool wifiDisabled = true;
 bool doDisableWifi = false;
@@ -241,6 +243,24 @@ void ICACHE_FLASH_ATTR setup()
 	writeEvent("INFO", "sys", "System setup completed, running", "");
 }
 
+void doActivateRelay(int relayNum) {
+	// Continuous relay mode
+	if (lockType[relayNum] == LOCKTYPE_CONTINUOUS) {
+		// Flip-flop.
+		int s = digitalRead(relayPin[relayNum]);
+		digitalWrite(relayPin[relayNum], !s);
+	}
+	// Momentary relay mode
+	else if (lockType[relayNum] == LOCKTYPE_MOMENTARY) {
+#ifdef DEBUG
+		Serial.print("mili : ");
+		Serial.println(millis());
+		Serial.printf("activating relay %d now\n", relayNum);
+#endif
+		digitalWrite(relayPin[relayNum], relayType[relayNum]);
+	}
+}
+
 void ICACHE_RAM_ATTR loop()
 {
 	currentMillis = millis();
@@ -256,6 +276,30 @@ void ICACHE_RAM_ATTR loop()
 #endif
 		writeLatest("", "(used open/close button)", 1);
 		activateRelay[0] = true;
+	}
+
+	// "Open access" timer.
+	int hr = hour();
+	if (NTP.hasBeenUpdated && (hr >= 5) && (hr <= 21)) { // Only use the time when it has been updated successfully via NTP at least once.
+		if (!openAccessActive) { // Only activate once.
+			// Inside open access hours, enable open access mode.
+			openAccessActive = true;
+			Serial.println("Open access enabled - doors unlocked.");
+			writeEvent("INFO", "sys", "Open access enabled - doors unlocked.", "");
+			for (int currentRelay = 0; currentRelay < numRelays ; currentRelay++) {
+				doActivateRelay(currentRelay);
+			}
+		}
+	} else if (openAccessActive) {
+		// Outside of "open access" hours, need to disable open access mode.
+		openAccessActive = false;
+		Serial.println("Open access enabled - doors locked.");
+		writeEvent("INFO", "sys", "Open access disabled - doors locked.", "");
+		for (int currentRelay = 0; currentRelay < numRelays ; currentRelay++) {
+			// Only "momentary" lock types need deactivating.
+			if (lockType[currentRelay] == LOCKTYPE_MOMENTARY)
+				digitalWrite(relayPin[currentRelay], !relayType[currentRelay]);
+		}
 	}
 
 	if (wifipin != 255 && configMode && !wmode)
@@ -285,65 +329,30 @@ void ICACHE_RAM_ATTR loop()
 		rfidloop();
 	}
 
-	// Continuous relay mode
-
-	for (int currentRelay = 0; currentRelay < numRelays ; currentRelay++){
-	  if (lockType[currentRelay] == LOCKTYPE_CONTINUOUS)
-		{
-		if (activateRelay[currentRelay])
-		{
-			// currently OFF, need to switch ON
-			if (digitalRead(relayPin[currentRelay]) == !relayType[currentRelay])
-			{
+	// Don't bother looping unless open access mode is enabled.
+	if (!openAccessActive) {
+		// Loop through relay array, see if we need to change any relay states.
+		for (int currentRelay = 0; currentRelay < numRelays ; currentRelay++) {
+			if (activateRelay[currentRelay]) {
+				doActivateRelay(currentRelay);
+				activateRelay[currentRelay] = false;
+				if (lockType[currentRelay] == LOCKTYPE_MOMENTARY)
+					deactivateRelay[currentRelay] = millis() + activateTime[currentRelay];
+			} else if ((deactivateRelay[currentRelay] > 0) && (currentMillis >= deactivateRelay[currentRelay])) {
+				// Deactivate a continuous relay.
 #ifdef DEBUG
-				Serial.print("mili : ");
-				Serial.println(millis());
-				Serial.printf("activating relay %d now\n",currentRelay);
-#endif
-				digitalWrite(relayPin[currentRelay], relayType[currentRelay]);
-			}
-			else	// currently ON, need to switch OFF
-			{
-#ifdef DEBUG
-				Serial.print("mili : ");
-				Serial.println(millis());
-				Serial.printf("deactivating relay %d now\n",currentRelay);
+				Serial.printf("deactivating relay %d now\n", currentRelay);
+				Serial.println(currentMillis);
+				Serial.println(deactivateRelay[currentRelay]);
+				Serial.println(activateTime[currentRelay]);
+				Serial.println(activateRelay[currentRelay]);
 #endif
 				digitalWrite(relayPin[currentRelay], !relayType[currentRelay]);
+				deactivateRelay[currentRelay] = 0;
 			}
-			activateRelay[currentRelay] = false;
 		}
-	  }
-	  else if (lockType[currentRelay] == LOCKTYPE_MOMENTARY)	// momentary relay mode
-	  {
-		if (activateRelay[currentRelay])
-		{
-#ifdef DEBUG
-			Serial.print("mili : ");
-			Serial.println(millis());
-			Serial.printf("activating relay %d now\n",currentRelay);
-#endif
-			digitalWrite(relayPin[currentRelay], relayType[currentRelay]);
-			previousMillis = millis();
-			activateRelay[currentRelay] = false;
-			deactivateRelay[currentRelay] = true;
-		}
-		else if ((currentMillis - previousMillis >= activateTime[currentRelay]) && (deactivateRelay[currentRelay]))
-		{
-#ifdef DEBUG
-			Serial.println(currentMillis);
-			Serial.println(previousMillis);
-			Serial.println(activateTime[currentRelay]);
-			Serial.println(activateRelay[currentRelay]);
-			Serial.println("deactivate relay after this");
-			Serial.print("mili : ");
-			Serial.println(millis());
-#endif
-			digitalWrite(relayPin[currentRelay], !relayType[currentRelay]);
-			deactivateRelay[currentRelay] = false;
-		}
-	  }
 	}
+
 	if (formatreq)
 	{
 #ifdef DEBUG

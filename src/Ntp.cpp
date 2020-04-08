@@ -18,6 +18,8 @@ AsyncUDP NtpClient::udpListener;
 
 byte NtpClient::NTPpacket[NTP_PACKET_SIZE];
 
+bool NtpClient::hasBeenUpdated;
+
 void ICACHE_FLASH_ATTR NtpClient::Ntp(const char * server, int8_t tz, time_t syncSecs) {
 	TimeServerName = strdup(server);
 	timezone = tz;
@@ -25,6 +27,7 @@ void ICACHE_FLASH_ATTR NtpClient::Ntp(const char * server, int8_t tz, time_t syn
 	WiFi.hostByName(TimeServerName, timeServer);
 	setSyncProvider(getNtpTime);
 	setSyncInterval(syncInterval);
+	hasBeenUpdated = false;
 }
 
 
@@ -49,6 +52,8 @@ time_t ICACHE_FLASH_ATTR NtpClient::getNtpTime() {
 			unsigned long lowWord = word(packet.data()[42], packet.data()[43]);
 			time_t UnixUTCtime = (highWord << 16 | lowWord) - 2208988800UL;
 			setTime(UnixUTCtime);
+			Serial.printf("NTP time set: %d\n", UnixUTCtime);
+			hasBeenUpdated = true;
 		});
 	}
 	else {

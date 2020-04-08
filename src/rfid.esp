@@ -312,7 +312,7 @@ void ICACHE_FLASH_ATTR rfidloop()
 				unsigned long nowL = now();
 
 				if (validL > nowL)
-				{
+				{ 
 					activateRelay[currentRelay] = true;
 					ws.textAll("{\"command\":\"giveAccess\"}");
 #ifdef DEBUG

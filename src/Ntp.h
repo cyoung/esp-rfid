@@ -43,6 +43,8 @@ public:
 	bool ICACHE_FLASH_ATTR processTime();
 	time_t getUptimeSec();
 
+	static bool hasBeenUpdated;
+
 private:
 	static ICACHE_FLASH_ATTR String zeroPaddedIntVal(int val);
 	static ICACHE_FLASH_ATTR time_t getNtpTime();
