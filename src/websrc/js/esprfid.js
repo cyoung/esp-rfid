@@ -41,7 +41,9 @@ var config = {
         "ltype": 0,
         "rpin": 4,
         "rtime": 400,
-        "buttonpin": 255
+        "buttonpin": 255,
+        "openAccessStart": -1,
+        "openAccessEnd": -1
     },
     "general": {
         "hostnm": "esp-rfid",
@@ -146,6 +148,8 @@ function listhardware() {
   document.getElementById("wifipin").value = config.hardware.wifipin;
   document.getElementById("doorstatpin").value = config.hardware.doorstatpin;
   document.getElementById("openlockpin").value = config.hardware.openlockpin;
+  document.getElementById("openAccessStart").value = config.hardware.openAccessStart;
+  document.getElementById("openAccessEnd").value = config.hardware.openAccessEnd;
   if (isOfficialBoard) {
     document.getElementById("readertype").value = 1;
     document.getElementById("wg0pin").value = 5;
@@ -224,6 +228,8 @@ function savehardware() {
   config.hardware.wifipin = parseInt(document.getElementById("wifipin").value);
   config.hardware.doorstatpin = parseInt(document.getElementById("doorstatpin").value);
   config.hardware.openlockpin = parseInt(document.getElementById("openlockpin").value);
+  config.hardware.openAccessStart = parseInt(document.getElementById("openAccessStart").value);
+  config.hardware.openAccessEnd = parseInt(document.getElementById("openAccessEnd").value);
   config.hardware["numrelays"] = numRelays; 
 
   for (var i = 2; i<=numRelays; i++)

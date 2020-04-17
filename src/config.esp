@@ -63,6 +63,12 @@ bool ICACHE_FLASH_ATTR loadConfiguration()
 		}
 	}
 
+	if (hardware.containsKey("openAccessStart"))
+		openAccess_start = hardware["openAccessStart"];
+
+	if (hardware.containsKey("openAccessEnd"))
+		openAccess_end = hardware["openAccessEnd"];
+
 	if (hardware.containsKey("numrelays"))
 	{
 		numRelays = hardware["numrelays"];

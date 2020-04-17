@@ -143,6 +143,10 @@ bool inAPMode = false;
 bool isWifiConnected = false;
 unsigned long autoRestartIntervalSeconds = 0;
 bool openAccessActive = false;
+// Open access hours.
+int8_t openAccess_start = -1;
+int8_t openAccess_end = -1;
+
 
 bool wifiDisabled = true;
 bool doDisableWifi = false;
@@ -287,25 +291,29 @@ void ICACHE_RAM_ATTR loop()
 	// "Open access" timer.
 	time_t localAdjustedTime = myTZ.toLocal(now());
 	int hr = hour(localAdjustedTime);
-	if (NTP.hasBeenUpdated && (hr >= 5) && (hr <= 21)) { // Only use the time when it has been updated successfully via NTP at least once.
-		if (!openAccessActive) { // Only activate once.
-			// Inside open access hours, enable open access mode.
-			openAccessActive = true;
-			Serial.println("Open access enabled - doors unlocked.");
-			writeEvent("INFO", "sys", "Open access enabled - doors unlocked.", "");
-			for (int currentRelay = 0; currentRelay < numRelays ; currentRelay++) {
-				doActivateRelay(currentRelay);
+
+	if ((openAccess_start >= 0) && (openAccess_end >= 0)) {
+		if (NTP.hasBeenUpdated && (hr >= openAccess_start) && (hr <= openAccess_end)) { // Only use the time when it has been updated successfully via NTP at least once.
+			if (!openAccessActive) { // Only activate once.
+				Serial.printf("openAccess_start=%d, openAccess_end=%d\n", openAccess_start, openAccess_end);
+				// Inside open access hours, enable open access mode.
+				openAccessActive = true;
+				Serial.println("Open access enabled - doors unlocked.");
+				writeEvent("INFO", "sys", "Open access enabled - doors unlocked.", "");
+				for (int currentRelay = 0; currentRelay < numRelays ; currentRelay++) {
+					doActivateRelay(currentRelay);
+				}
 			}
-		}
-	} else if (openAccessActive) {
-		// Outside of "open access" hours, need to disable open access mode.
-		openAccessActive = false;
-		Serial.println("Open access enabled - doors locked.");
-		writeEvent("INFO", "sys", "Open access disabled - doors locked.", "");
-		for (int currentRelay = 0; currentRelay < numRelays ; currentRelay++) {
-			// Only "momentary" lock types need deactivating.
-			if (lockType[currentRelay] == LOCKTYPE_MOMENTARY)
-				digitalWrite(relayPin[currentRelay], !relayType[currentRelay]);
+		} else if (openAccessActive) {
+			// Outside of "open access" hours, need to disable open access mode.
+			openAccessActive = false;
+			Serial.println("Open access enabled - doors locked.");
+			writeEvent("INFO", "sys", "Open access disabled - doors locked.", "");
+			for (int currentRelay = 0; currentRelay < numRelays ; currentRelay++) {
+				// Only "momentary" lock types need deactivating.
+				if (lockType[currentRelay] == LOCKTYPE_MOMENTARY)
+					digitalWrite(relayPin[currentRelay], !relayType[currentRelay]);
+			}
 		}
 	}
 
