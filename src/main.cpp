@@ -293,7 +293,7 @@ void ICACHE_RAM_ATTR loop()
 	int hr = hour(localAdjustedTime);
 
 	if ((openAccess_start >= 0) && (openAccess_end >= 0)) {
-		if (NTP.hasBeenUpdated && (hr >= openAccess_start) && (hr <= openAccess_end)) { // Only use the time when it has been updated successfully via NTP at least once.
+		if (NTP.hasBeenUpdated && (hr >= openAccess_start) && (hr < openAccess_end)) { // Only use the time when it has been updated successfully via NTP at least once.
 			if (!openAccessActive) { // Only activate once.
 				Serial.printf("openAccess_start=%d, openAccess_end=%d\n", openAccess_start, openAccess_end);
 				// Inside open access hours, enable open access mode.
